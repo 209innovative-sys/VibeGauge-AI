@@ -1,0 +1,8 @@
+import React from "react";
+import { VibeDashboard } from "./components/VibeDashboard";
+
+const App: React.FC = () => {
+  return <VibeDashboard />;
+};
+
+export default App;

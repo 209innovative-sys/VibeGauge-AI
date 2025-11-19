@@ -1,0 +1,14 @@
+﻿module.exports = {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ["system-ui", "ui-sans-serif", "Inter", "sans-serif"],
+      },
+      boxShadow: {
+        "soft-glow": "0 0 40px rgba(56, 189, 248, 0.35)",
+      },
+    },
+  },
+  plugins: [],
+};
