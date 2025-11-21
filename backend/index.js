@@ -24,7 +24,7 @@ function randomBetween(min, max) {
 }
 
 function randomUnit() {
-  return parseFloat(Math.random().toFixed(2));
+  return parseFloat(Math.random().toFixed(2)); // 0–1 with 2 decimals
 }
 
 function buildMockAnalysis(payload) {
@@ -75,10 +75,12 @@ function buildMockAnalysis(payload) {
   };
 }
 
+// Health check route
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Analyze route
 app.post("/analyze", (req, res) => {
   try {
     const { messages, metadata, anonymousMode } = req.body || {};
