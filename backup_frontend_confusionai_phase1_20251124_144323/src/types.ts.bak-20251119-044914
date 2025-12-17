@@ -1,0 +1,37 @@
+﻿export type VibeMode =
+  | "calm"
+  | "positive"
+  | "tense"
+  | "hostile"
+  | "confused"
+  | "in_love"
+  | "flirty"
+  | "shy";
+
+export interface AnalysisResult {
+  vibe: VibeMode;
+  score: number; // 0–100 overall vibe index
+  sentiment: number; // 0–1, higher = more positive
+  tension: number; // 0–1, higher = more tense
+  honesty: number; // 0–1
+  gaslighting: number; // 0–1
+  hiddenAgenda: number; // 0–1
+  miscommunication: number; // 0–1
+
+  // Relationship / romantic signals:
+  inLove: number; // 0–1 likelihood there is genuine love/attachment
+  flirting: number; // 0–1 likelihood of flirtatious tone
+  shy: number; // 0–1 likelihood of shyness / hesitancy
+
+  summary: string; // one-paragraph conversational summary
+
+  isProUser: boolean; // paid tier flag
+  psychEval?: string; // only present if Pro user AND they chose to generate it
+  anonymousMode: boolean;
+}
+
+export interface ChatMessage {
+  id: number;
+  author: "you" | "them";
+  text: string;
+}

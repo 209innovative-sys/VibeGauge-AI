@@ -1,0 +1,565 @@
+﻿import React, { useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
+import { motion } from "framer-motion";
+import { Share2, Sparkles, MessageCircle, Activity } from "lucide-react";
+import clsx from "classnames";
+import type { AnalysisResult, ChatMessage, VibeMode } from "../types";
+import { getVibeTheme } from "../vibeThemes";
+
+const initialAnalysis: AnalysisResult = {
+  vibe: "calm",
+  score: 68,
+  sentiment: 0.72,
+  tension: 0.18,
+  honesty: 0.86,
+  gaslighting: 0.12,
+  hiddenAgenda: 0.28,
+  miscommunication: 0.24,
+  inLove: 0.35,
+  flirting: 0.32,
+  shy: 0.21,
+  summary:
+    "Conversation feels mostly steady and constructive with light emotional undertones. Some signals of deeper feelings and mild uncertainty, but overall the exchange remains calm.",
+  isProUser: true,
+  psychEval:
+    "This mock insight suggests two people trying to stay grounded while navigating mixed emotions. There is curiosity and care, but also hesitation around full vulnerability. Not medical advice.",
+  anonymousMode: true,
+};
+
+const initialMessages: ChatMessage[] = [
+  {
+    id: 1,
+    author: "you",
+    text: "Hey, I just want to make sure we're okay after earlier.",
+  },
+  {
+    id: 2,
+    author: "them",
+    text: "Yeah, we're okay. I just needed a little time to cool off.",
+  },
+  {
+    id: 3,
+    author: "you",
+    text: "I care about you. I don't want small things to turn into big fights.",
+  },
+  {
+    id: 4,
+    author: "them",
+    text: "Same here. I get defensive sometimes, but I'm trying to do better.",
+  },
+];
+
+const vibeOrder: VibeMode[] = [
+  "calm",
+  "positive",
+  "tense",
+  "hostile",
+  "confused",
+  "in_love",
+  "flirty",
+  "shy",
+];
+
+const nextVibe = (current: VibeMode): VibeMode => {
+  const index = vibeOrder.indexOf(current);
+  if (index === -1) return "calm";
+  const nextIndex = (index + 1) % vibeOrder.length;
+  return vibeOrder[nextIndex];
+};
+
+const percent = (value: number) =>
+  Math.round(Math.max(0, Math.min(1, value)) * 100).toString() + "%";
+
+export const VibeDashboard: React.FC = () => {
+  const [analysis, setAnalysis] = useState<AnalysisResult>(initialAnalysis);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [input, setInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(
+    initialAnalysis.anonymousMode
+  );
+
+  const theme = useMemo(() => getVibeTheme(analysis.vibe), [analysis.vibe]);
+
+  const pulseClass = useMemo(() => {
+    switch (theme.pulse) {
+      case "strong":
+        return "pulse-strong";
+      case "medium":
+        return "pulse-medium";
+      default:
+        return "pulse-soft";
+    }
+  }, [theme.pulse]);
+
+  const rootStyle: CSSProperties = {
+    backgroundImage: theme.background,
+    backgroundColor: "#020617",
+    color: theme.text,
+    "--accent-color": theme.accent,
+  } as CSSProperties;
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "VibeGauge",
+      text: "Check out VibeGauge – an AI dashboard that reacts to the vibe of your chats.",
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(window.location.href);
+        alert("Link copied to clipboard.");
+      } else {
+        alert("Sharing is not fully supported in this browser. Copy the URL manually.");
+      }
+    } catch (err) {
+      console.error("Share failed", err);
+    }
+  };
+
+  const handleSubscribe = () => {
+    // TODO: Wire this into Stripe or your billing provider.
+    console.log("Subscribe clicked – connect billing flow here.");
+    alert("Subscribe flow coming soon. This will unlock deeper Pro-level insights.");
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!input.trim()) return;
+
+    setIsSubmitting(true);
+    const newMessage: ChatMessage = {
+      id: Date.now(),
+      author: "you",
+      text: input.trim(),
+    };
+
+    const echoedReply: ChatMessage = {
+      id: Date.now() + 1,
+      author: "them",
+      text: "Mock reply for demo purposes. In production this would be the other person in the chat.",
+    };
+
+    setMessages((prev) => [...prev, newMessage, echoedReply]);
+    setInput("");
+
+    // Mocked analysis update – in a real build, call the /analyze backend endpoint here.
+    const next = nextVibe(analysis.vibe);
+    const rand = () => Math.random();
+
+    setAnalysis((prev) => ({
+      ...prev,
+      vibe: next,
+      score: Math.round(40 + rand() * 60),
+      sentiment: Number(rand().toFixed(2)),
+      tension: Number(rand().toFixed(2)),
+      honesty: Number(rand().toFixed(2)),
+      gaslighting: Number(rand().toFixed(2)),
+      hiddenAgenda: Number(rand().toFixed(2)),
+      miscommunication: Number(rand().toFixed(2)),
+      inLove: Number(rand().toFixed(2)),
+      flirting: Number(rand().toFixed(2)),
+      shy: Number(rand().toFixed(2)),
+      summary:
+        "Mocked analysis update based on the latest messages. Replace this text with real AI-generated insights from your backend.",
+      anonymousMode: isAnonymous,
+    }));
+
+    setTimeout(() => setIsSubmitting(false), 350);
+  };
+
+  const metrics = [
+    {
+      key: "honesty",
+      label: "Honesty",
+      value: analysis.honesty,
+      hint: "Experimental AI signal – not a diagnosis.",
+    },
+    {
+      key: "gaslighting",
+      label: "Gaslighting",
+      value: analysis.gaslighting,
+      hint: "Experimental AI signal – not a diagnosis.",
+    },
+    {
+      key: "hiddenAgenda",
+      label: "Hidden Agenda",
+      value: analysis.hiddenAgenda,
+      hint: "Experimental AI signal – not a diagnosis.",
+    },
+    {
+      key: "miscommunication",
+      label: "Miscommunication",
+      value: analysis.miscommunication,
+      hint: "Experimental AI signal – not a diagnosis.",
+    },
+  ] as const;
+
+  const romanticSignals = [
+    {
+      key: "inLove",
+      label: "In love",
+      value: analysis.inLove,
+    },
+    {
+      key: "flirting",
+      label: "Flirting",
+      value: analysis.flirting,
+    },
+    {
+      key: "shy",
+      label: "Shy / hesitant",
+      value: analysis.shy,
+    },
+  ];
+
+  return (
+    <div
+      className={clsx(
+        "min-h-screen flex flex-col transition-[background,box-shadow] duration-700 ease-out",
+        pulseClass
+      )}
+      style={rootStyle}
+    >
+      <header className="px-4 sm:px-6 py-4 border-b border-slate-800/60 bg-black/30 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/20 border border-sky-400/60 shadow-soft-glow">
+              <span className="text-sm font-semibold tracking-tight text-sky-100">
+                VG
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold tracking-tight">
+                  VibeGauge
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Signal
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                The whole screen reacts to the emotional vibe of your chat.
+              </p>
+            </div>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-slate-300">
+            <button className="text-sky-300">Dashboard</button>
+            <button className="hover:text-slate-100 transition-colors">
+              Analyze
+            </button>
+            <button className="hover:text-slate-100 transition-colors">
+              Chat
+            </button>
+            <button className="hover:text-slate-100 transition-colors">
+              Profile
+            </button>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-slate-400/90 hover:bg-slate-900/90 transition-colors"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span>Share</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSubscribe}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--accent-color)] px-3.5 py-1.5 text-xs font-semibold text-slate-950 shadow-soft-glow hover:brightness-110 transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Subscribe</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mx-auto mt-2 flex max-w-7xl items-center justify-between text-[0.7rem] text-slate-400">
+          <div className="flex items-center gap-2">
+            <Activity className="h-3 w-3 text-sky-400" />
+            <span>
+              Current vibe:{" "}
+              <span className="font-medium text-sky-200">
+                {analysis.vibe.replace("_", " ")}
+              </span>{" "}
+              · Score {analysis.score}/100
+            </span>
+          </div>
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="rounded-full bg-slate-900/60 border border-slate-700/80 px-3 py-1">
+              Session:{" "}
+              <span className="font-medium text-slate-100">
+                {analysis.anonymousMode ? "Anonymous testers" : "Linked to profile"}
+              </span>
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 px-4 sm:px-6 py-6">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
+          {/* Left column: Gauge + metrics */}
+          <section className="space-y-6">
+            {/* VibeGauge Card */}
+            <motion.div
+              className="glass-panel rounded-3xl p-5 sm:p-7 flex flex-col md:flex-row gap-6 md:gap-8 items-center"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <div className="relative h-44 w-44 sm:h-52 sm:w-52 flex items-center justify-center">
+                <div
+                  className="absolute inset-0 rounded-full opacity-80"
+                  style={{
+                    backgroundImage:
+                      "conic-gradient(from 220deg, #0ea5e9, #6366f1, #ec4899, #ef4444, #0ea5e9)",
+                  }}
+                />
+                <div className="absolute inset-[18px] sm:inset-[22px] rounded-full bg-slate-950/90 border border-slate-700/80 flex flex-col items-center justify-center text-center px-4">
+                  <span className="text-[0.7rem] uppercase tracking-[0.18em] text-slate-400">
+                    Vibe Index
+                  </span>
+                  <span className="mt-1 text-4xl sm:text-5xl font-semibold tracking-tight">
+                    {analysis.score}
+                  </span>
+                  <span className="mt-1 text-[0.75rem] text-slate-400">
+                    {analysis.vibe.replace("_", " ")}
+                  </span>
+                </div>
+                <div
+                  className="absolute -inset-3 rounded-full border border-[color:var(--accent-color)]/40 opacity-60 blur-[2px]"
+                  style={{
+                    boxShadow: "0 0 40px rgba(56, 189, 248, 0.45)",
+                  }}
+                />
+              </div>
+
+              <div className="flex-1 space-y-3">
+                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                  <span>Live vibe analysis</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/80 border border-slate-700/80 px-2 py-0.5 text-[0.65rem] font-medium text-slate-300">
+                    <MessageCircle className="h-3 w-3 text-sky-400" />
+                    Chat-driven
+                  </span>
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  {analysis.summary}
+                </p>
+
+                <dl className="mt-2 grid grid-cols-3 gap-3 text-[0.7rem] sm:text-xs">
+                  <div>
+                    <dt className="text-slate-400">Sentiment</dt>
+                    <dd className="font-semibold text-slate-50">
+                      {percent(analysis.sentiment)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Tension</dt>
+                    <dd className="font-semibold text-slate-50">
+                      {percent(analysis.tension)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Honesty signal</dt>
+                    <dd className="font-semibold text-slate-50">
+                      {percent(analysis.honesty)}
+                    </dd>
+                  </div>
+                </dl>
+
+                <dl className="mt-2 grid grid-cols-3 gap-3 text-[0.7rem] sm:text-xs">
+                  {romanticSignals.map((signal) => (
+                    <div key={signal.key}>
+                      <dt className="text-slate-400">{signal.label}</dt>
+                      <dd className="font-semibold text-slate-50">
+                        {percent(signal.value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </motion.div>
+
+            {/* Metrics cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {metrics.map((metric) => (
+                <div
+                  key={metric.key}
+                  className="glass-panel rounded-2xl p-4 flex flex-col gap-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-100">
+                        {metric.label}
+                      </h3>
+                      <p className="text-[0.65rem] text-slate-400">
+                        {metric.hint}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-200">
+                      {percent(metric.value)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-slate-900/80 overflow-hidden">
+                    <div
+                      className={clsx(
+                        "h-full w-0 rounded-full bg-gradient-to-r",
+                        metric.key === "honesty" && "from-emerald-400 to-emerald-500",
+                        metric.key === "gaslighting" && "from-amber-400 to-amber-500",
+                        metric.key === "hiddenAgenda" && "from-fuchsia-400 to-fuchsia-500",
+                        metric.key === "miscommunication" &&
+                          "from-sky-400 to-sky-500"
+                      )}
+                      style={{ width: percent(metric.value) }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Psych Eval */}
+            {analysis.isProUser && analysis.psychEval && (
+              <div className="glass-panel rounded-3xl p-4 sm:p-5 border border-fuchsia-500/40 shadow-soft-glow">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-fuchsia-500/20 border border-fuchsia-400/70 text-[0.65rem] text-fuchsia-50">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-fuchsia-50">
+                      Deep Insight (Pro)
+                    </h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-600/80 bg-slate-950/60 px-2.5 py-0.5 text-[0.65rem] text-slate-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                    Optional · Not medical advice
+                  </span>
+                </div>
+                <p className="mt-3 text-xs sm:text-sm text-slate-200 leading-relaxed">
+                  {analysis.psychEval}
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Right column: Chat */}
+          <section className="space-y-4">
+            <div className="glass-panel rounded-3xl flex h-[460px] sm:h-[520px] flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800/70 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900/80 border border-slate-700/80">
+                    <MessageCircle className="h-4 w-4 text-sky-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-semibold text-slate-100">
+                      Chat
+                    </h2>
+                    <p className="text-[0.65rem] text-slate-400">
+                      Feed in your conversation to watch the vibe react.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center gap-1 text-[0.65rem] text-slate-300">
+                    <span
+                      className={clsx(
+                        "h-1.5 w-1.5 rounded-full",
+                        analysis.anonymousMode
+                          ? "bg-emerald-400 animate-pulse"
+                          : "bg-sky-400"
+                      )}
+                    />
+                    <span>
+                      {analysis.anonymousMode
+                        ? "Anonymous testers"
+                        : "Linked to profile"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={clsx(
+                      "flex",
+                      msg.author === "you" ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        "max-w-[80%] rounded-2xl px-3 py-2 text-xs sm:text-[0.8rem] leading-relaxed",
+                        msg.author === "you"
+                          ? "bg-sky-500/20 border border-sky-400/60 text-sky-50"
+                          : "bg-slate-900/80 border border-slate-700/80 text-slate-100"
+                      )}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <form
+                onSubmit={handleSubmit}
+                className="border-t border-slate-800/70 px-4 py-3 space-y-2"
+              >
+                <div className="flex items-center gap-2 text-[0.7rem] text-slate-400">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-3 w-3 rounded border-slate-600 bg-slate-900 text-sky-400 focus:ring-0"
+                      checked={isAnonymous}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setIsAnonymous(next);
+                        setAnalysis((prev) => ({
+                          ...prev,
+                          anonymousMode: next,
+                        }));
+                      }}
+                    />
+                    <span>Anonymous session</span>
+                  </label>
+                  <span className="text-slate-500">·</span>
+                  <span>Toggle to link vibes to a signed-in profile later.</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <textarea
+                    rows={2}
+                    className="flex-1 resize-none rounded-2xl border border-slate-700/80 bg-slate-950/70 px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[color:var(--accent-color)]"
+                    placeholder="Paste or type a message you just sent or received..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={clsx(
+                      "inline-flex h-full min-w-[130px] flex-col items-center justify-center rounded-2xl bg-[color:var(--accent-color)] px-3 py-2 text-[0.7rem] sm:text-xs font-semibold text-slate-950 shadow-soft-glow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                    )}
+                  >
+                    <span>Send &amp; Analyze</span>
+                    <span className="mt-0.5 text-[0.6rem] font-normal">
+                      (Mocked for now – backend ready at /analyze)
+                    </span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default VibeDashboard;

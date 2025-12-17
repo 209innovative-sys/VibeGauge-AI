@@ -1,0 +1,78 @@
+﻿const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const VIBE_MODES = [
+  "calm",
+  "positive",
+  "tense",
+  "hostile",
+  "confused",
+  "in_love",
+  "flirty",
+  "shy",
+];
+
+const randomBetween = (min, max) => Math.random() * (max - min) + min;
+const randomUnit = () => Math.random();
+
+function buildMockAnalysis(payload) {
+  const vibe =
+    VIBE_MODES[Math.floor(Math.random() * VIBE_MODES.length)] || "calm";
+  const isProUser = true;
+  const anonymousMode =
+    payload && typeof payload.anonymousMode === "boolean"
+      ? payload.anonymousMode
+      : true;
+
+  return {
+    vibe,
+    score: Math.round(randomBetween(40, 100)),
+    sentiment: Number(randomUnit().toFixed(2)),
+    tension: Number(randomUnit().toFixed(2)),
+    honesty: Number(randomUnit().toFixed(2)),
+    gaslighting: Number(randomUnit().toFixed(2)),
+    hiddenAgenda: Number(randomUnit().toFixed(2)),
+    miscommunication: Number(randomUnit().toFixed(2)),
+    inLove: Number(randomUnit().toFixed(2)),
+    flirting: Number(randomUnit().toFixed(2)),
+    shy: Number(randomUnit().toFixed(2)),
+    summary:
+      "Mocked analysis summary: overall emotional tone, tension, and honesty levels based on the sample conversation. Replace this with real AI output.",
+    isProUser,
+    psychEval: isProUser
+      ? "This is a mocked psychological-style reflection generated for demo purposes only. It is not clinical advice."
+      : undefined,
+    anonymousMode,
+  };
+}
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.post("/analyze", (req, res) => {
+  const body = req.body || {};
+  const { messages, metadata, anonymousMode } = body;
+
+  const analysis = buildMockAnalysis({
+    messages,
+    metadata,
+    anonymousMode,
+  });
+
+  res.json(analysis);
+});
+
+const PORT = process.env.PORT || 4000;
+
+app.listen(PORT, () => {
+  console.log("VibeGauge backend listening on port " + PORT);
+});
