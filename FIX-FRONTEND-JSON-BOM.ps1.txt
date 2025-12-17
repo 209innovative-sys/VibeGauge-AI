@@ -1,0 +1,100 @@
+param(
+  [string]$RepoRoot = ".",
+  [string]$FrontendDir = "frontend",
+  [switch]$SkipGitPush,
+  [string]$Branch = "main"
+)
+
+Write-Host "=== FIX Confusion-AI: Remove UTF-8 BOM from JSON files ===" -ForegroundColor Cyan
+
+# Resolve repo root
+try { $rootPath = (Resolve-Path -Path $RepoRoot -ErrorAction Stop).Path } catch { Write-Error "Repo root not found: $RepoRoot"; exit 1 }
+Set-Location $rootPath
+Write-Host "Repo root: $rootPath" -ForegroundColor Yellow
+
+$frontendPath = Join-Path $rootPath $FrontendDir
+if (-not (Test-Path $frontendPath)) { Write-Error "Frontend directory not found: $frontendPath"; exit 1 }
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$backupDir = Join-Path $rootPath ("backup_json_bom_fix_" + $timestamp)
+New-Item -ItemType Directory -Path $backupDir -ErrorAction SilentlyContinue | Out-Null
+Write-Host "Backup dir: $backupDir" -ForegroundColor DarkGray
+
+function Backup-File($path) {
+  if (Test-Path $path) {
+    $dest = Join-Path $backupDir ((Split-Path $path -Leaf) + ".bak")
+    Copy-Item $path $dest -Force
+  }
+}
+
+function Strip-Utf8Bom($path) {
+  if (-not (Test-Path $path)) { return $false }
+  $bytes = [System.IO.File]::ReadAllBytes($path)
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    Backup-File $path
+    $newBytes = $bytes[3..($bytes.Length-1)]
+    [System.IO.File]::WriteAllBytes($path, $newBytes)
+    Write-Host "Removed BOM: $path" -ForegroundColor Green
+    return $true
+  } else {
+    Write-Host "No BOM: $path" -ForegroundColor DarkGray
+    return $false
+  }
+}
+
+# Target JSON files commonly read by Vite/PostCSS/Tailwind tooling
+$targets = @(
+  (Join-Path $frontendPath "package.json"),
+  (Join-Path $frontendPath "package-lock.json"),
+  (Join-Path $frontendPath "tsconfig.json"),
+  (Join-Path $frontendPath "vite.config.ts"),
+  (Join-Path $frontendPath "tailwind.config.cjs"),
+  (Join-Path $frontendPath "postcss.config.cjs")
+)
+
+# Also strip BOM from any *.json at frontend root (safe, helps)
+Get-ChildItem -Path $frontendPath -File -Filter "*.json" -ErrorAction SilentlyContinue | ForEach-Object {
+  if ($targets -notcontains $_.FullName) { $targets += $_.FullName }
+}
+
+$changed = $false
+foreach ($t in $targets) {
+  $did = Strip-Utf8Bom $t
+  if ($did) { $changed = $true }
+}
+
+# Force dev deps install even if npm config production is set
+Push-Location $frontendPath
+Write-Host "Installing deps with devDependencies included..." -ForegroundColor Yellow
+npm install --include=dev
+if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "npm install failed"; exit 1 }
+
+Write-Host "Running local build (npm run build)..." -ForegroundColor Yellow
+npm run build
+$exit = $LASTEXITCODE
+Pop-Location
+
+if ($exit -ne 0) {
+  Write-Error "Build still failed. Paste the FIRST 40 lines of the new error."
+  exit 1
+}
+
+Write-Host "✅ Local build succeeded." -ForegroundColor Cyan
+
+if ($SkipGitPush) {
+  Write-Host "SkipGitPush enabled. Not committing/pushing." -ForegroundColor Yellow
+  exit 0
+}
+
+# Commit + push if needed
+$porcelain = git status --porcelain
+if (-not $porcelain) {
+  Write-Host "No git changes detected to commit." -ForegroundColor DarkGray
+  exit 0
+}
+
+git add frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/postcss.config.cjs frontend/tailwind.config.cjs
+git commit -m "Fix BOM in frontend JSON files for Vercel/Vite build"
+git push origin $Branch
+
+Write-Host "=== Done. Now redeploy on Vercel. ===" -ForegroundColor Cyan

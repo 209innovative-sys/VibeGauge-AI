@@ -1,0 +1,59 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-slate-950 text-slate-50 antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.pulse-soft {
+  animation: softPulse 5s ease-in-out infinite;
+}
+
+.pulse-medium {
+  animation: softPulse 3.5s ease-in-out infinite;
+}
+
+.pulse-strong {
+  animation: strongPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes softPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.0);
+  }
+
+  50% {
+    transform: scale(1.01);
+    box-shadow: 0 0 80px 0 rgba(56, 189, 248, 0.45);
+  }
+}
+
+@keyframes strongPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.0);
+  }
+
+  45% {
+    transform: scale(1.02);
+    box-shadow: 0 0 120px 0 rgba(239, 68, 68, 0.6);
+  }
+}
