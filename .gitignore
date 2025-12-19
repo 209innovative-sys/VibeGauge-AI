@@ -1,0 +1,19 @@
+﻿# --- Confusion-AI ignores ---
+.env
+.env.*
+*.log
+.DS_Store
+.vercel/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+android/
+ios/
+*.keystore
+*.jks
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*

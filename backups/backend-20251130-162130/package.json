@@ -1,0 +1,20 @@
+{
+  "name": "vibegauge-backend",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "multer": "^2.0.2",
+    "openai": "^6.9.1",
+    "stripe": "^20.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
