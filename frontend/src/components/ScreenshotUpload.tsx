@@ -1,135 +1,140 @@
-import React, { useEffect, useState } from "react";
-import type { AnalysisResult } from "../types/analysis";
+import React, { useEffect, useMemo, useState } from "react";
 
-type ScreenshotUploadProps = {
-  onResult: (result: AnalysisResult) => void;
+type Props = {
+  onResult: (data: any) => void;
   onError: (message: string) => void;
-  canAnalyze: () => boolean;
 };
 
-const ScreenshotUpload: React.FC<ScreenshotUploadProps> = ({
-  onResult,
-  onError,
-  canAnalyze,
-}) => {
+const TOKEN_KEY = "confusionai_pro_token";
+const CLIENT_KEY = "confusionai_client_id";
+
+function getClientId(): string {
+  try {
+    let v = localStorage.getItem(CLIENT_KEY);
+    if (!v) {
+      v =
+        (crypto as any)?.randomUUID?.() ||
+        Math.random().toString(16).slice(2) + Date.now().toString(16);
+      localStorage.setItem(CLIENT_KEY, v);
+    }
+    return v;
+  } catch {
+    return "anon";
+  }
+}
+
+function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export default function ScreenshotUpload({ onResult, onError }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+  const apiBase = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:4000";
+  const canAnalyze = useMemo(() => !!file && !busy, [file, busy]);
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
-    if (!selected.type.startsWith("image/")) {
-      const msg = "Please select a PNG or JPEG screenshot.";
-      setLocalError(msg);
-      onError(msg);
-      setFile(null);
+    if (!file) {
       setPreviewUrl(null);
       return;
     }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
-    setFile(selected);
-    setLocalError(null);
-    setPreviewUrl(URL.createObjectURL(selected));
-  };
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+  }
 
-  const handleUpload = async () => {
+  async function handleAnalyze() {
     if (!file) {
-      const msg = "Choose a screenshot first.";
-      setLocalError(msg);
-      onError(msg);
+      onError("Choose a screenshot first.");
       return;
     }
 
-    if (!canAnalyze()) return;
-
-    setIsUploading(true);
-    setLocalError(null);
-    onError("");
+    setBusy(true);
 
     try {
       const formData = new FormData();
       formData.append("image", file);
 
-      const res = await fetch(${apiBase}/analyze-image, {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/analyze-image`, {
         method: "POST",
+        headers: {
+          "x-confusionai-client": getClientId(),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
 
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(body || Screenshot analysis failed with );
+      if (res.status === 402) {
+        const body = await res.json().catch(() => null);
+        const used = body?.usedToday ?? "?";
+        const limit = body?.freeDailyLimit ?? "?";
+        onError(`Free limit reached (${used}/${limit}). Tap Upgrade for unlimited.`);
+        return;
       }
 
-      const data = (await res.json()) as AnalysisResult;
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body || `Screenshot analysis failed with ${res.status}`);
+      }
+
+      const data = await res.json();
       onResult(data);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Unexpected screenshot analysis error.";
-      setLocalError(message);
-      onError(message);
-      console.error(err);
+    } catch (e: any) {
+      console.error(e);
+      onError(e?.message || "Screenshot analyze failed.");
     } finally {
-      setIsUploading(false);
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="mt-4 space-y-2 rounded-2xl border border-slate-700 bg-slate-950/60 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-200">
-          Or upload a screenshot
-        </span>
+    <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs font-semibold text-slate-100">Upload screenshot</div>
+        <div className="text-[11px] text-slate-400">JPG/PNG • clear text works best</div>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+        <label className="block">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePick}
+            className="block w-full cursor-pointer rounded-xl border border-slate-700 bg-slate-950/60 p-2 text-xs text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-100 hover:file:bg-slate-700"
+          />
+        </label>
+
         <button
           type="button"
-          onClick={handleUpload}
-          disabled={isUploading || !file}
-          className="inline-flex items-center justify-center rounded-lg bg-fuchsia-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 shadow-md shadow-fuchsia-900/40 transition hover:bg-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canAnalyze}
+          onClick={handleAnalyze}
+          className="rounded-xl bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950 shadow-lg shadow-cyan-900/30 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isUploading ? "Analyzing..." : "Analyze Screenshot"}
+          {busy ? "Analyzing..." : "Analyze Screenshot"}
         </button>
       </div>
 
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-600 bg-slate-900/60 px-3 py-4 text-center text-[11px] text-slate-400 hover:border-fuchsia-500/70 hover:text-fuchsia-300">
-        <input
-          type="file"
-          accept="image/png,image/jpeg"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <span className="font-medium">
-          Click to choose a PNG or JPEG conversation screenshot
-        </span>
-        <span className="mt-1 text-[10px] text-slate-500">
-          We only use it to analyze this compatibility. Nothing is stored.
-        </span>
-      </label>
-
       {previewUrl && (
-        <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-900/70">
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-700/70">
           <img
             src={previewUrl}
-            alt="Conversation preview"
-            className="max-h-64 w-full object-cover"
+            alt="Screenshot preview"
+            className="w-full max-h-64 object-contain bg-slate-950/40"
           />
         </div>
       )}
-
-      {localError && (
-        <p className="text-[11px] text-red-400">{localError}</p>
-      )}
     </div>
   );
-};
-
-export default ScreenshotUpload;
+}
