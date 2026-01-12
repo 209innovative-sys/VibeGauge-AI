@@ -1,20 +1,5 @@
-﻿import React, { useEffect, useState } from "react";
-
-type Metric = {
-  score: number;
-  reason: string;
-};
-
-type AnalysisResult = {
-  honesty: Metric;
-  gaslighting: Metric;
-  hiddenAgenda: Metric;
-  miscommunication: Metric;
-  inLove: Metric;
-  flirting: Metric;
-  shy: Metric;
-  summary: string;
-};
+import React, { useEffect, useState } from "react";
+import type { AnalysisResult } from "../types/analysis";
 
 type ScreenshotUploadProps = {
   onResult: (result: AnalysisResult) => void;
@@ -32,14 +17,11 @@ const ScreenshotUpload: React.FC<ScreenshotUploadProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
 
   useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
 
@@ -58,8 +40,7 @@ const ScreenshotUpload: React.FC<ScreenshotUploadProps> = ({
 
     setFile(selected);
     setLocalError(null);
-    const url = URL.createObjectURL(selected);
-    setPreviewUrl(url);
+    setPreviewUrl(URL.createObjectURL(selected));
   };
 
   const handleUpload = async () => {
@@ -70,10 +51,7 @@ const ScreenshotUpload: React.FC<ScreenshotUploadProps> = ({
       return;
     }
 
-    // Free vs Pro gating
-    if (!canAnalyze()) {
-      return;
-    }
+    if (!canAnalyze()) return;
 
     setIsUploading(true);
     setLocalError(null);
@@ -83,25 +61,21 @@ const ScreenshotUpload: React.FC<ScreenshotUploadProps> = ({
       const formData = new FormData();
       formData.append("image", file);
 
-      const res = await fetch(`${apiBase}/analyze-image`, {
+      const res = await fetch(${apiBase}/analyze-image, {
         method: "POST",
         body: formData,
       });
 
       if (!res.ok) {
         const body = await res.text();
-        throw new Error(
-          body || `Screenshot analysis failed with ${res.status}`
-        );
+        throw new Error(body || Screenshot analysis failed with );
       }
 
       const data = (await res.json()) as AnalysisResult;
       onResult(data);
     } catch (err: unknown) {
       const message =
-        err instanceof Error
-          ? err.message
-          : "Unexpected screenshot analysis error.";
+        err instanceof Error ? err.message : "Unexpected screenshot analysis error.";
       setLocalError(message);
       onError(message);
       console.error(err);
