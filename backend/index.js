@@ -123,7 +123,7 @@ async function runTextAnalysis(text) {
 }
 
 async function runImageAnalysis(imageBuffer, mimeType) {
-  const dataUrl = data:;base64,;
+  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
 
   const system = [
     'You are Confusion-AI by Innovative Solutions.',
@@ -210,6 +210,6 @@ app.post('/analyze-image', upload.single('image'), async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(Confusion-AI backend listening on port );
+app.listen(PORT, () => {
+console.log(`Confusion-AI backend listening on port ${process.env.PORT || 4000}`);
 });
