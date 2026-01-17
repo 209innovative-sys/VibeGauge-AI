@@ -18,6 +18,3 @@ backend/.env.*
 frontend/.env
 frontend/.env.*
 backend/.env.bak*
-
-**/.env
-**/.env.*
