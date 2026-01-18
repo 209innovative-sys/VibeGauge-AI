@@ -13,52 +13,73 @@ const OPENAI_MODEL_TEXT = process.env.OPENAI_MODEL_TEXT || 'gpt-4o-mini';
 const OPENAI_MODEL_VISION = process.env.OPENAI_MODEL_VISION || 'gpt-4o-mini';
 
 if (!process.env.OPENAI_API_KEY) {
-  console.warn('[WARN] OPENAI_API_KEY is missing. /analyze endpoints will fail until set.');
+  console.warn('[WARN] OPENAI_API_KEY is missing. Analyze endpoints will fail.');
 }
 
 const app = express();
-app.disable('x-powered-by');
 
-app.use(morgan('tiny'));
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+/* =========================================================
+   CORS CONFIG — Vercel + Local + Previews
+   ========================================================= */
 
-// ---- CORS (allow your prod domain + all *.vercel.app previews + any explicit allowlist) ----
-const allowList = String(process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+const explicitAllowList = [
+  'https://confusion-ai.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true; // server-to-server or curl
-  if (allowList.includes(origin)) return true;
-  // allow Vercel previews automatically:
+  if (!origin) return true; // curl, server-to-server
+  if (explicitAllowList.includes(origin)) return true;
+
+  // Allow all Vercel preview deployments
   if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return true;
+
   return false;
 }
 
 const corsOptions = {
-  origin: function(origin, cb) {
+  origin: (origin, cb) => {
     if (isAllowedOrigin(origin)) return cb(null, true);
     return cb(new Error('CORS blocked for origin: ' + origin));
   },
-  methods: ['GET','POST','OPTIONS'],
+  methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false,
+  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// ---- Multer in-memory upload ----
+/* ========================================================= */
+
+app.disable('x-powered-by');
+app.use(morgan('tiny'));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+/* =========================================================
+   MULTER (in-memory)
+   ========================================================= */
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 }, // 12MB
 });
 
-// ---- OpenAI client ----
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+/* =========================================================
+   OPENAI CLIENT
+   ========================================================= */
 
-// ---- helpers ----
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
 function clampScore(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return 0;
@@ -66,11 +87,16 @@ function clampScore(n) {
 }
 
 function normalizeMetric(m) {
-  if (!m || typeof m !== 'object') return { score: 0, reason: '' };
-  return { score: clampScore(m.score), reason: String(m.reason || '') };
+  if (!m || typeof m !== 'object') {
+    return { score: 0, reason: '' };
+  }
+  return {
+    score: clampScore(m.score),
+    reason: String(m.reason || ''),
+  };
 }
 
-function normalizeAnalysis(a) {
+function normalizeAnalysis(a = {}) {
   return {
     honesty: normalizeMetric(a.honesty),
     gaslighting: normalizeMetric(a.gaslighting),
@@ -80,136 +106,139 @@ function normalizeAnalysis(a) {
     flirting: normalizeMetric(a.flirting),
     shy: normalizeMetric(a.shy),
     summary: String(a.summary || ''),
-    // optional extras (won't break frontend if ignored)
     extractedText: a.extractedText ? String(a.extractedText) : undefined,
-    messages: Array.isArray(a.messages) ? a.messages.map(x => ({
-      sender: String(x.sender || 'Unknown'),
-      text: String(x.text || '')
-    })) : undefined
+    messages: Array.isArray(a.messages)
+      ? a.messages.map(m => ({
+        sender: String(m.sender || 'Unknown'),
+        text: String(m.text || ''),
+      }))
+      : undefined,
   };
 }
 
+/* =========================================================
+   TEXT ANALYSIS
+   ========================================================= */
+
 async function runTextAnalysis(text) {
-  const system = [
-    'You are Confusion-AI by Innovative Solutions.',
-    'Analyze the conversation "compatibility/vibe" and return ONLY strict JSON.',
-    'Schema:',
-    '{',
-    '  "honesty":{"score":0-100,"reason":"..."}',
-    '  "gaslighting":{"score":0-100,"reason":"..."}',
-    '  "hiddenAgenda":{"score":0-100,"reason":"..."}',
-    '  "miscommunication":{"score":0-100,"reason":"..."}',
-    '  "inLove":{"score":0-100,"reason":"..."}',
-    '  "flirting":{"score":0-100,"reason":"..."}',
-    '  "shy":{"score":0-100,"reason":"..."}',
-    '  "summary":"1-3 sentences, plain English"',
-    '}',
-    'No markdown. No extra keys.',
-  ].join('\\n');
+  const systemPrompt = `
+You are Confusion-AI by Innovative Solutions.
+Analyze the conversation and return ONLY strict JSON.
+
+Schema:
+{
+  "honesty":{"score":0-100,"reason":"..."},
+  "gaslighting":{"score":0-100,"reason":"..."},
+  "hiddenAgenda":{"score":0-100,"reason":"..."},
+  "miscommunication":{"score":0-100,"reason":"..."},
+  "inLove":{"score":0-100,"reason":"..."},
+  "flirting":{"score":0-100,"reason":"..."},
+  "shy":{"score":0-100,"reason":"..."},
+  "summary":"1-3 sentences"
+}
+
+No markdown. No extra keys.
+`;
 
   const resp = await openai.chat.completions.create({
     model: OPENAI_MODEL_TEXT,
     temperature: 0.4,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: 'Conversation:\\n' + text }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Conversation:\n${text}` },
     ],
   });
 
   const content = resp.choices?.[0]?.message?.content || '{}';
-  const parsed = JSON.parse(content);
-  return normalizeAnalysis(parsed);
+  return normalizeAnalysis(JSON.parse(content));
 }
 
-async function runImageAnalysis(imageBuffer, mimeType) {
-  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+/* =========================================================
+   IMAGE ANALYSIS
+   ========================================================= */
 
-  const system = [
-    'You are Confusion-AI by Innovative Solutions.',
-    'You will read a screenshot of a text conversation.',
-    'Return ONLY strict JSON with these keys:',
-    '{',
-    '  "extractedText":"full extracted conversation text (multi-line)",',
-    '  "messages":[{"sender":"A or B or a visible name","text":"message text"}],',
-    '  "honesty":{"score":0-100,"reason":"..."},',
-    '  "gaslighting":{"score":0-100,"reason":"..."},',
-    '  "hiddenAgenda":{"score":0-100,"reason":"..."},',
-    '  "miscommunication":{"score":0-100,"reason":"..."},',
-    '  "inLove":{"score":0-100,"reason":"..."},',
-    '  "flirting":{"score":0-100,"reason":"..."},',
-    '  "shy":{"score":0-100,"reason":"..."},',
-    '  "summary":"1-3 sentences"',
-    '}',
-    'No markdown. No extra keys.',
-    'If sender is unclear, use A/B consistently.'
-  ].join('\\n');
+async function runImageAnalysis(imageBuffer, mimeType) {
+  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+
+  const systemPrompt = `
+You are Confusion-AI by Innovative Solutions.
+Read a screenshot of a conversation and return ONLY strict JSON.
+
+Include:
+- extractedText
+- messages [{sender,text}]
+- all scoring metrics
+- summary
+
+No markdown. No extra keys.
+`;
 
   const resp = await openai.chat.completions.create({
     model: OPENAI_MODEL_VISION,
     temperature: 0.2,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: system },
+      { role: 'system', content: systemPrompt },
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Analyze this screenshot.' },
-          { type: 'image_url', image_url: { url: dataUrl } }
-        ]
-      }
-    ]
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+      },
+    ],
   });
 
   const content = resp.choices?.[0]?.message?.content || '{}';
-  const parsed = JSON.parse(content);
-  return normalizeAnalysis(parsed);
+  return normalizeAnalysis(JSON.parse(content));
 }
 
-// ---- routes ----
-app.get('/health', (req, res) => {
-  res.status(200).json({ ok: true, service: 'confusion-ai-backend', time: new Date().toISOString() });
+/* =========================================================
+   ROUTES
+   ========================================================= */
+
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'confusion-ai-backend',
+    time: new Date().toISOString(),
+  });
 });
 
 app.post('/analyze', async (req, res) => {
   try {
-    const text = String(req.body?.text || '');
-    if (!text.trim()) return res.status(400).json({ error: 'Missing text' });
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Missing text' });
 
-    const out = await runTextAnalysis(text);
-    res.status(200).json(out);
+    const result = await runTextAnalysis(text);
+    res.json(result);
   } catch (err) {
-    const status = err?.status || err?.response?.status;
-    const retryAfterMs = err?.headers?.get?.('retry-after-ms') || err?.headers?.['retry-after-ms'];
-    const message = err?.message || 'Failed to analyze text';
-
-    if (status === 429) {
-      return res.status(429).json({ error: message, retryAfterMs: retryAfterMs ? Number(retryAfterMs) : undefined });
-    }
-    console.error('Error in /analyze:', err);
-    return res.status(500).json({ error: 'Failed to analyze text' });
+    console.error('Analyze error:', err);
+    res.status(500).json({ error: 'Failed to analyze text' });
   }
 });
 
 app.post('/analyze-image', upload.single('image'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Missing image file (field name: image)' });
-    const mimeType = req.file.mimetype || 'image/png';
-    const out = await runImageAnalysis(req.file.buffer, mimeType);
-    res.status(200).json(out);
-  } catch (err) {
-    const status = err?.status || err?.response?.status;
-    const retryAfterMs = err?.headers?.get?.('retry-after-ms') || err?.headers?.['retry-after-ms'];
-    const message = err?.message || 'Failed to analyze image';
-
-    if (status === 429) {
-      return res.status(429).json({ error: message, retryAfterMs: retryAfterMs ? Number(retryAfterMs) : undefined });
+    if (!req.file) {
+      return res.status(400).json({ error: 'Missing image file' });
     }
-    console.error('Error in /analyze-image:', err);
-    return res.status(500).json({ error: 'Failed to analyze image' });
+
+    const result = await runImageAnalysis(
+      req.file.buffer,
+      req.file.mimetype || 'image/png'
+    );
+
+    res.json(result);
+  } catch (err) {
+    console.error('Image analyze error:', err);
+    res.status(500).json({ error: 'Failed to analyze image' });
   }
 });
 
+/* ========================================================= */
+
 app.listen(PORT, () => {
-console.log(`Confusion-AI backend listening on port ${process.env.PORT || 4000}`);
+  console.log(`Confusion-AI backend listening on port ${PORT}`);
 });
