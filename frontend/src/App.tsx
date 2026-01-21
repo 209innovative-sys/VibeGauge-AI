@@ -1,21 +1,21 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+﻿import { useState } from "react";
 import Landing from "./pages/Landing";
-import VibeApp from "./pages/VibeApp";
+import Analyzer from "./Analyzer";
 
 export default function App() {
+  const [view, setView] = useState<"landing" | "app">("landing");
+
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Landing page */}
-        <Route path="/" element={<Landing />} />
-
-        {/* Existing app */}
-        <Route path="/app" element={<VibeApp />} />
-
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <div className="min-h-screen transition-all duration-500 ease-out">
+      {view === "landing" ? (
+        <div className="animate-fadeIn">
+          <Landing onTry={() => setView("app")} />
+        </div>
+      ) : (
+        <div className="animate-scaleIn">
+          <Analyzer />
+        </div>
+      )}
+    </div>
   );
 }

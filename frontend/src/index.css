@@ -29,3 +29,17 @@
   0% { transform: translateY(-30%); }
   100% { transform: translateY(520%); }
 }
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97) }
+  to { opacity: 1; transform: scale(1) }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+.animate-scaleIn {
+  animation: scaleIn 0.35s ease-out;
+}
